@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>シフト申請</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; }
+    .container { max-width: 480px; margin: 0 auto; padding: 16px; }
+    .header { display: flex; align-items: center; gap: 12px; padding: 16px 0; border-bottom: 1px solid #e0e0e0; margin-bottom: 16px; }
+    .back-btn { width: 36px; height: 36px; border: none; background: #f0f0f0; border-radius: 50%; font-size: 18px; cursor: pointer; }
+    .header h1 { font-size: 18px; font-weight: 600; }
+    .calendar-header { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: white; border-radius: 12px 12px 0 0; }
+    .calendar-nav { width: 36px; height: 36px; border: none; background: #f0f0f0; border-radius: 50%; font-size: 16px; cursor: pointer; }
+    .calendar-title { font-size: 16px; font-weight: 600; }
+    .calendar-grid { background: white; border-radius: 0 0 12px 12px; padding: 12px; }
+    .calendar-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 12px; color: #666; margin-bottom: 8px; }
+    .calendar-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .calendar-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 14px; border-radius: 50%; cursor: pointer; border: none; background: transparent; }
+    .calendar-day:hover:not(.disabled):not(.empty) { background: #e3f2fd; }
+    .calendar-day.monday { background: #e3f2fd; font-weight: 600; }
+    .calendar-day.selected { background: #06C755; color: white; }
+    .calendar-day.disabled { color: #ccc; cursor: not-allowed; }
+    .calendar-day.empty { cursor: default; }
+    .calendar-info { text-align: center; padding: 12px; font-size: 12px; color: #666; }
+    .shift-form { display: none; }
+    .week-title { background: #06C755; color: white; padding: 12px 16px; border-radius: 12px 12px 0 0; font-weight: 600; }
+    .day-input { background: white; padding: 16px; border-bottom: 1px solid #f0f0f0; }
+    .day-input:last-of-type { border-radius: 0 0 12px 12px; border-bottom: none; }
+    .day-header { font-weight: 600; margin-bottom: 12px; }
+    .day-options { display: flex; gap: 16px; margin-bottom: 12px; }
+    .day-options label { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+    .time-inputs { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .time-inputs input[type="time"] { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
+    .time-inputs input:disabled { background: #f5f5f5; }
+    .allday-check { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 14px; }
+    .comment-input input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+    .comment-input label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
+    .btn-group { display: flex; gap: 12px; margin-top: 20px; }
+    .btn { flex: 1; padding: 14px; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; }
+    .btn-primary { background: #06C755; color: white; }
+    .btn-secondary { background: #f0f0f0; color: #333; }
+    .confirm-view { display: none; }
+    .confirm-list { background: white; border-radius: 12px; overflow: hidden; }
+    .confirm-item { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+    .confirm-item:last-child { border-bottom: none; }
+    .confirm-day { font-weight: 600; }
+    .confirm-time { color: #06C755; }
+    .confirm-off { color: #999; }
+    .confirm-comment { font-size: 12px; color: #666; margin-top: 4px; }
+    .complete-view { display: none; text-align: center; padding: 40px 20px; }
+    .complete-icon { font-size: 64px; margin-bottom: 20px; }
+    .complete-title { font-size: 20px; font-weight: 600; margin-bottom: 12px; }
+    .complete-message { color: #666; margin-bottom: 24px; }
+    .loading { text-align: center; padding: 40px; }
+    .spinner { width: 40px; height: 40px; border: 3px solid #f3f3f3; border-top: 3px solid #06C755; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- デバッグパネル -->
+    <div id="debugPanel" style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;max-height:150px;overflow:auto;display:block;">
+      <strong>Debug Log:</strong><br>
+      <div id="debugLog"></div>
+    </div>
+    
+    <div class="header">
+      <button class="back-btn" onclick="goBack()">←</button>
+      <h1>📅 シフト申請</h1>
+    </div>
+    
+    <div id="calendarView">
+      <div class="calendar-header">
+        <button class="calendar-nav" onclick="prevMonth()">＜</button>
+        <span class="calendar-title" id="calendarTitle">2026年2月</span>
+        <button class="calendar-nav" onclick="nextMonth()">＞</button>
+      </div>
+      <div class="calendar-grid">
+        <div class="calendar-weekdays">
+          <span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span><span>日</span>
+        </div>
+        <div class="calendar-days" id="calendarDays"></div>
+      </div>
+      <div class="calendar-info">※月曜日をタップして週を選択<br>※グレーの週は申請期限切れ</div>
+    </div>
+    
+    <div id="shiftForm" class="shift-form">
+      <div class="week-title" id="weekTitle">2/17（月）〜 2/23（日）</div>
+      <div id="dayInputs"></div>
+      <div class="btn-group">
+        <button class="btn btn-secondary" onclick="showCalendar()">戻る</button>
+        <button class="btn btn-primary" onclick="showConfirm()">確認画面へ</button>
+      </div>
+    </div>
+    
+    <div id="confirmView" class="confirm-view">
+      <div class="week-title">申請内容の確認</div>
+      <div class="confirm-list" id="confirmList"></div>
+      <div class="btn-group">
+        <button class="btn btn-secondary" onclick="backToShiftForm()">修正する</button>
+        <button class="btn btn-primary" onclick="submitShift()">この内容で申請</button>
+      </div>
+    </div>
+    
+    <div id="completeView" class="complete-view">
+      <div class="complete-icon">✅</div>
+      <div class="complete-title">シフト申請を受け付けました</div>
+      <div class="complete-message" id="completeMessage">確定までお待ちください</div>
+      <button class="btn btn-primary" onclick="goToMenu()">メニューに戻る</button>
+    </div>
+    
+    <div id="loadingView" class="loading" style="display: none;">
+      <div class="spinner"></div>
+      <p>送信中...</p>
+    </div>
+  </div>
+  
+  <script>
+    const LIFF_ID = '2009050065-oKaPomP6';
+    const API_URL = 'https://script.google.com/macros/s/AKfycbyHP0pY5NdGa_SySLHs3E2XkDlZGQ2X1lIOi372w-Y3JoQeo3LbGaetpSc3KC6-d_bpFg/exec';
+    
+    // デバッグログ関数
+    function debugLog(msg) {
+      console.log(msg);
+      var logDiv = document.getElementById('debugLog');
+      if (logDiv) {
+        var time = new Date().toLocaleTimeString();
+        logDiv.innerHTML += '[' + time + '] ' + msg + '<br>';
+        logDiv.scrollTop = logDiv.scrollHeight;
+      }
+    }
+    
+    // エラーハンドラ
+    window.onerror = function(msg, url, line) {
+      debugLog('ERROR: ' + msg + ' (line ' + line + ')');
+      return false;
+    };
+    
+    let allDayStart = '09:00';
+    let allDayEnd = '21:00';
+    let userProfile = null;
+    let currentYear = new Date().getFullYear();
+    let currentMonth = new Date().getMonth();
+    let selectedWeekStart = null;
+    const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+    
+    // 初期化
+    async function init() {
+      debugLog('init() started');
+      debugLog('User Agent: ' + navigator.userAgent.substring(0, 50) + '...');
+      debugLog('isInClient check...');
+      
+      renderCalendar();
+      debugLog('Calendar rendered');
+      
+      try {
+        debugLog('LIFF init starting...');
+        await liff.init({ liffId: LIFF_ID });
+        debugLog('LIFF init OK');
+        debugLog('isInClient: ' + liff.isInClient());
+        debugLog('isLoggedIn: ' + liff.isLoggedIn());
+        
+        if (liff.isLoggedIn()) {
+          userProfile = await liff.getProfile();
+          debugLog('Profile: ' + userProfile.displayName);
+        }
+      } catch (e) {
+        debugLog('LIFF error: ' + e.message);
+      }
+      
+      // 店舗設定を取得（テスト）
+      debugLog('Testing API fetch...');
+      try {
+        const res = await fetch(API_URL + '?action=getSettings');
+        debugLog('Fetch status: ' + res.status);
+        const data = await res.json();
+        debugLog('Settings received: ' + JSON.stringify(data).substring(0, 50));
+        if (data.allDayStart) allDayStart = data.allDayStart;
+        if (data.allDayEnd) allDayEnd = data.allDayEnd;
+      } catch (e) {
+        debugLog('Settings fetch error: ' + e.message);
+      }
+      
+      debugLog('init() completed');
+    }
+    
+    // カレンダー描画
+    function renderCalendar() {
+      document.getElementById('calendarTitle').textContent = `${currentYear}年${currentMonth + 1}月`;
+      const daysContainer = document.getElementById('calendarDays');
+      daysContainer.innerHTML = '';
+      
+      const firstDay = new Date(currentYear, currentMonth, 1);
+      const lastDay = new Date(currentYear, currentMonth + 1, 0);
+      
+      let startDayOfWeek = firstDay.getDay();
+      startDayOfWeek = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
+      
+      for (let i = 0; i < startDayOfWeek; i++) {
+        const emptyCell = document.createElement('button');
+        emptyCell.className = 'calendar-day empty';
+        daysContainer.appendChild(emptyCell);
+      }
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      for (let day = 1; day <= lastDay.getDate(); day++) {
+        const date = new Date(currentYear, currentMonth, day);
+        const isMonday = date.getDay() === 1;
+        
+        const cell = document.createElement('button');
+        cell.className = 'calendar-day';
+        cell.textContent = day;
+        
+        if (isMonday) {
+          cell.classList.add('monday');
+          const deadline = new Date(date);
+          deadline.setDate(deadline.getDate() - 14);
+          deadline.setDate(deadline.getDate() - deadline.getDay());
+          deadline.setHours(23, 59, 59, 999);
+          
+          if (today > deadline) {
+            cell.classList.add('disabled');
+          } else {
+            cell.onclick = () => selectWeek(date);
+          }
+        }
+        daysContainer.appendChild(cell);
+      }
+    }
+    
+    function prevMonth() {
+      currentMonth--;
+      if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+      renderCalendar();
+    }
+    
+    function nextMonth() {
+      currentMonth++;
+      if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+      renderCalendar();
+    }
+    
+    function selectWeek(mondayDate) {
+      selectedWeekStart = mondayDate;
+      showShiftForm();
+    }
+    
+    function showShiftForm() {
+      document.getElementById('calendarView').style.display = 'none';
+      document.getElementById('confirmView').style.display = 'none';
+      document.getElementById('shiftForm').style.display = 'block';
+      
+      const endDate = new Date(selectedWeekStart);
+      endDate.setDate(endDate.getDate() + 6);
+      
+      const formatDate = (d) => `${d.getMonth() + 1}/${d.getDate()}（${dayNames[d.getDay()]}）`;
+      document.getElementById('weekTitle').textContent = `${formatDate(selectedWeekStart)} 〜 ${formatDate(endDate)}`;
+      
+      const container = document.getElementById('dayInputs');
+      container.innerHTML = '';
+      
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(selectedWeekStart);
+        date.setDate(date.getDate() + i);
+        
+        const dayInput = document.createElement('div');
+        dayInput.className = 'day-input';
+        dayInput.innerHTML = `
+          <div class="day-header">${formatDate(date)}</div>
+          <div class="day-options">
+            <label><input type="radio" name="type_${i}" value="work" checked onchange="toggleTimeInputs(${i})"> 出勤</label>
+            <label><input type="radio" name="type_${i}" value="off" onchange="toggleTimeInputs(${i})"> 休み</label>
+          </div>
+          <div class="time-inputs" id="timeInputs_${i}">
+            <input type="time" id="start_${i}" value="09:00">
+            <span>〜</span>
+            <input type="time" id="end_${i}" value="17:00">
+          </div>
+          <div class="allday-check" id="alldayCheck_${i}">
+            <input type="checkbox" id="allday_${i}" onchange="toggleAllDay(${i})">
+            <label for="allday_${i}">終日（${allDayStart}〜${allDayEnd}）</label>
+          </div>
+          <div class="comment-input">
+            <label>コメント（任意）</label>
+            <input type="text" id="comment_${i}" maxlength="50" placeholder="例：面接あり">
+          </div>
+        `;
+        container.appendChild(dayInput);
+      }
+    }
+    
+    function toggleTimeInputs(index) {
+      const isOff = document.querySelector(`input[name="type_${index}"]:checked`).value === 'off';
+      document.getElementById(`timeInputs_${index}`).style.display = isOff ? 'none' : 'flex';
+      document.getElementById(`alldayCheck_${index}`).style.display = isOff ? 'none' : 'flex';
+    }
+    
+    function toggleAllDay(index) {
+      const isAllDay = document.getElementById(`allday_${index}`).checked;
+      const startInput = document.getElementById(`start_${index}`);
+      const endInput = document.getElementById(`end_${index}`);
+      if (isAllDay) {
+        startInput.value = allDayStart; endInput.value = allDayEnd;
+        startInput.disabled = true; endInput.disabled = true;
+      } else {
+        startInput.disabled = false; endInput.disabled = false;
+      }
+    }
+    
+    function showCalendar() {
+      document.getElementById('shiftForm').style.display = 'none';
+      document.getElementById('calendarView').style.display = 'block';
+    }
+    
+    function showConfirm() {
+      document.getElementById('shiftForm').style.display = 'none';
+      document.getElementById('confirmView').style.display = 'block';
+      
+      const list = document.getElementById('confirmList');
+      list.innerHTML = '';
+      
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(selectedWeekStart);
+        date.setDate(date.getDate() + i);
+        
+        const isOff = document.querySelector(`input[name="type_${i}"]:checked`).value === 'off';
+        const startTime = document.getElementById(`start_${i}`).value;
+        const endTime = document.getElementById(`end_${i}`).value;
+        const isAllDay = document.getElementById(`allday_${i}`).checked;
+        const comment = document.getElementById(`comment_${i}`).value;
+        
+        const item = document.createElement('div');
+        item.className = 'confirm-item';
+        
+        let timeText = isOff ? '<span class="confirm-off">休み</span>' : `<span class="confirm-time">${startTime}〜${endTime}</span>${isAllDay ? ' <small>（終日）</small>' : ''}`;
+        
+        item.innerHTML = `
+          <div>
+            <div class="confirm-day">${date.getMonth() + 1}/${date.getDate()}（${dayNames[date.getDay()]}）</div>
+            ${comment ? `<div class="confirm-comment">💬 ${comment}</div>` : ''}
+          </div>
+          <div>${timeText}</div>
+        `;
+        list.appendChild(item);
+      }
+    }
+    
+    function backToShiftForm() {
+      document.getElementById('confirmView').style.display = 'none';
+      document.getElementById('shiftForm').style.display = 'block';
+    }
+    
+    async function submitShift() {
+      document.getElementById('confirmView').style.display = 'none';
+      document.getElementById('loadingView').style.display = 'block';
+      
+      const shifts = [];
+      let workDays = 0;
+      
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(selectedWeekStart);
+        date.setDate(date.getDate() + i);
+        
+        const isOff = document.querySelector(`input[name="type_${i}"]:checked`).value === 'off';
+        const startTime = document.getElementById(`start_${i}`).value;
+        const endTime = document.getElementById(`end_${i}`).value;
+        const isAllDay = document.getElementById(`allday_${i}`).checked;
+        const comment = document.getElementById(`comment_${i}`).value;
+        
+        let workHours = 0;
+        if (!isOff && startTime && endTime) {
+          const start = startTime.split(':').map(Number);
+          const end = endTime.split(':').map(Number);
+          workHours = (end[0] + end[1]/60) - (start[0] + start[1]/60);
+          workDays++;
+        }
+        
+        shifts.push({
+          date: date.toISOString().split('T')[0],
+          dayOfWeek: dayNames[date.getDay()],
+          startTime: isOff ? '' : startTime,
+          endTime: isOff ? '' : endTime,
+          workHours, isAllDay, isOff, comment
+        });
+      }
+      
+      const employeeId = userProfile ? userProfile.userId : 'GUEST';
+      const employeeName = userProfile ? userProfile.displayName : 'ゲスト';
+      
+      // シフトデータ送信
+      const shiftsJson = JSON.stringify(shifts);
+      const url = API_URL + 
+        '?action=saveShift' +
+        '&employeeId=' + encodeURIComponent(employeeId) +
+        '&employeeName=' + encodeURIComponent(employeeName) +
+        '&shifts=' + encodeURIComponent(shiftsJson);
+      
+      debugLog('URL length: ' + url.length);
+      debugLog('Shifts count: ' + shifts.length);
+      debugLog('employeeId: ' + employeeId);
+      debugLog('employeeName: ' + employeeName);
+      
+      var sendSuccess = false;
+      
+      // 方法1: 通常のfetch
+      debugLog('Method 1: fetch...');
+      try {
+        const res = await fetch(url);
+        debugLog('fetch status: ' + res.status);
+        const text = await res.text();
+        debugLog('fetch response: ' + text.substring(0, 100));
+        sendSuccess = true;
+      } catch(e) { 
+        debugLog('fetch error: ' + e.message);
+      }
+      
+      // 方法2: fetch no-cors
+      if (!sendSuccess) {
+        debugLog('Method 2: fetch no-cors...');
+        try {
+          await fetch(url, { mode: 'no-cors', cache: 'no-store' });
+          debugLog('no-cors sent (no response)');
+        } catch(e) { 
+          debugLog('no-cors error: ' + e.message);
+        }
+      }
+      
+      // 方法3: Image beacon
+      debugLog('Method 3: Image beacon...');
+      try {
+        var img = new Image();
+        img.onload = function() { debugLog('Image loaded'); };
+        img.onerror = function() { debugLog('Image error (expected)'); };
+        img.src = url + '&t=' + Date.now();
+      } catch(e) { 
+        debugLog('Image error: ' + e.message);
+      }
+      
+      // 方法4: XMLHttpRequest
+      debugLog('Method 4: XHR...');
+      try {
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState === 4) {
+            debugLog('XHR status: ' + xhr.status);
+            debugLog('XHR response: ' + (xhr.responseText || '').substring(0, 50));
+          }
+        };
+        xhr.onerror = function() { debugLog('XHR network error'); };
+        xhr.open('GET', url + '&x=' + Date.now(), true);
+        xhr.send();
+      } catch(e) { 
+        debugLog('XHR error: ' + e.message);
+      }
+      
+      // 5秒後に完了画面（デバッグ確認のため長めに）
+      debugLog('Waiting 5 seconds...');
+      setTimeout(function() {
+        debugLog('Showing complete screen');
+        showComplete(workDays);
+      }, 5000);
+    }
+    
+    function showComplete(workDays) {
+      if (document.getElementById('completeView').style.display === 'block') return;
+      document.getElementById('loadingView').style.display = 'none';
+      document.getElementById('completeMessage').textContent = '勤務日数: ' + workDays + '日\n確定までお待ちください';
+      document.getElementById('completeView').style.display = 'block';
+    }
+    
+    function goToMenu() { window.location.href = 'index.html'; }
+    
+    function goBack() {
+      if (document.getElementById('shiftForm').style.display === 'block') {
+        showCalendar();
+      } else if (document.getElementById('confirmView').style.display === 'block') {
+        backToShiftForm();
+      } else {
+        window.location.href = 'index.html';
+      }
+    }
+    
+    init();
+  </script>
+</body>
+</html>
