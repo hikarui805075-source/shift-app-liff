@@ -61,6 +61,12 @@
 </head>
 <body>
   <div class="container">
+    <!-- デバッグパネル -->
+    <div id="debugPanel" style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;max-height:150px;overflow:auto;display:block;">
+      <strong>Debug Log:</strong><br>
+      <div id="debugLog"></div>
+    </div>
+    
     <div class="header">
       <button class="back-btn" onclick="goBack()">←</button>
       <h1>📅 シフト申請</h1>
@@ -116,6 +122,23 @@
     const LIFF_ID = '2009050065-oKaPomP6';
     const API_URL = 'https://script.google.com/macros/s/AKfycbyHP0pY5NdGa_SySLHs3E2XkDlZGQ2X1lIOi372w-Y3JoQeo3LbGaetpSc3KC6-d_bpFg/exec';
     
+    // デバッグログ関数
+    function debugLog(msg) {
+      console.log(msg);
+      var logDiv = document.getElementById('debugLog');
+      if (logDiv) {
+        var time = new Date().toLocaleTimeString();
+        logDiv.innerHTML += '[' + time + '] ' + msg + '<br>';
+        logDiv.scrollTop = logDiv.scrollHeight;
+      }
+    }
+    
+    // エラーハンドラ
+    window.onerror = function(msg, url, line) {
+      debugLog('ERROR: ' + msg + ' (line ' + line + ')');
+      return false;
+    };
+    
     let allDayStart = '09:00';
     let allDayEnd = '21:00';
     let userProfile = null;
@@ -126,26 +149,42 @@
     
     // 初期化
     async function init() {
+      debugLog('init() started');
+      debugLog('User Agent: ' + navigator.userAgent.substring(0, 50) + '...');
+      debugLog('isInClient check...');
+      
       renderCalendar();
+      debugLog('Calendar rendered');
       
       try {
+        debugLog('LIFF init starting...');
         await liff.init({ liffId: LIFF_ID });
+        debugLog('LIFF init OK');
+        debugLog('isInClient: ' + liff.isInClient());
+        debugLog('isLoggedIn: ' + liff.isLoggedIn());
+        
         if (liff.isLoggedIn()) {
           userProfile = await liff.getProfile();
+          debugLog('Profile: ' + userProfile.displayName);
         }
       } catch (e) {
-        console.error('LIFF error:', e);
+        debugLog('LIFF error: ' + e.message);
       }
       
-      // 店舗設定を取得
+      // 店舗設定を取得（テスト）
+      debugLog('Testing API fetch...');
       try {
         const res = await fetch(API_URL + '?action=getSettings');
+        debugLog('Fetch status: ' + res.status);
         const data = await res.json();
+        debugLog('Settings received: ' + JSON.stringify(data).substring(0, 50));
         if (data.allDayStart) allDayStart = data.allDayStart;
         if (data.allDayEnd) allDayEnd = data.allDayEnd;
       } catch (e) {
-        console.error('Settings error:', e);
+        debugLog('Settings fetch error: ' + e.message);
       }
+      
+      debugLog('init() completed');
     }
     
     // カレンダー描画
@@ -353,7 +392,7 @@
       const employeeId = userProfile ? userProfile.userId : 'GUEST';
       const employeeName = userProfile ? userProfile.displayName : 'ゲスト';
       
-      // fetch with no-cors mode（リクエストは送信される）
+      // シフトデータ送信
       const shiftsJson = JSON.stringify(shifts);
       const url = API_URL + 
         '?action=saveShift' +
@@ -361,31 +400,70 @@
         '&employeeName=' + encodeURIComponent(employeeName) +
         '&shifts=' + encodeURIComponent(shiftsJson);
       
-      console.log('Sending request...');
+      debugLog('URL length: ' + url.length);
+      debugLog('Shifts count: ' + shifts.length);
+      debugLog('employeeId: ' + employeeId);
+      debugLog('employeeName: ' + employeeName);
       
-      // 複数の方法を同時に試す
-      try {
-        // 方法1: fetch no-cors
-        fetch(url, { mode: 'no-cors', cache: 'no-store' }).catch(function(){});
-      } catch(e) { console.log('fetch error:', e); }
+      var sendSuccess = false;
       
+      // 方法1: 通常のfetch
+      debugLog('Method 1: fetch...');
       try {
-        // 方法2: Image
+        const res = await fetch(url);
+        debugLog('fetch status: ' + res.status);
+        const text = await res.text();
+        debugLog('fetch response: ' + text.substring(0, 100));
+        sendSuccess = true;
+      } catch(e) { 
+        debugLog('fetch error: ' + e.message);
+      }
+      
+      // 方法2: fetch no-cors
+      if (!sendSuccess) {
+        debugLog('Method 2: fetch no-cors...');
+        try {
+          await fetch(url, { mode: 'no-cors', cache: 'no-store' });
+          debugLog('no-cors sent (no response)');
+        } catch(e) { 
+          debugLog('no-cors error: ' + e.message);
+        }
+      }
+      
+      // 方法3: Image beacon
+      debugLog('Method 3: Image beacon...');
+      try {
         var img = new Image();
+        img.onload = function() { debugLog('Image loaded'); };
+        img.onerror = function() { debugLog('Image error (expected)'); };
         img.src = url + '&t=' + Date.now();
-      } catch(e) { console.log('image error:', e); }
+      } catch(e) { 
+        debugLog('Image error: ' + e.message);
+      }
       
+      // 方法4: XMLHttpRequest
+      debugLog('Method 4: XHR...');
       try {
-        // 方法3: XMLHttpRequest
         var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState === 4) {
+            debugLog('XHR status: ' + xhr.status);
+            debugLog('XHR response: ' + (xhr.responseText || '').substring(0, 50));
+          }
+        };
+        xhr.onerror = function() { debugLog('XHR network error'); };
         xhr.open('GET', url + '&x=' + Date.now(), true);
         xhr.send();
-      } catch(e) { console.log('xhr error:', e); }
+      } catch(e) { 
+        debugLog('XHR error: ' + e.message);
+      }
       
-      // 2秒後に完了画面
+      // 5秒後に完了画面（デバッグ確認のため長めに）
+      debugLog('Waiting 5 seconds...');
       setTimeout(function() {
+        debugLog('Showing complete screen');
         showComplete(workDays);
-      }, 2000);
+      }, 5000);
     }
     
     function showComplete(workDays) {
