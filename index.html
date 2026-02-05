@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>シフト管理</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; }
+    .container { max-width: 480px; margin: 0 auto; padding: 20px; }
+    .header { text-align: center; padding: 20px 0; background: linear-gradient(135deg, #06C755 0%, #04a648 100%); color: white; border-radius: 12px; margin-bottom: 20px; }
+    .header h1 { font-size: 20px; margin-bottom: 8px; }
+    .header .greeting { font-size: 14px; opacity: 0.9; }
+    .menu-grid { display: grid; gap: 16px; }
+    .menu-item { background: white; border-radius: 12px; padding: 20px; display: flex; align-items: center; gap: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; text-decoration: none; color: inherit; border: none; width: 100%; text-align: left; }
+    .menu-item:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+    .menu-item:active { transform: translateY(0); }
+    .menu-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+    .menu-icon.apply { background: #E3F2FD; }
+    .menu-icon.confirm { background: #E8F5E9; }
+    .menu-icon.help { background: #FFF3E0; }
+    .menu-icon.info { background: #FCE4EC; }
+    .menu-text h2 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .menu-text p { font-size: 12px; color: #666; }
+    .loading { text-align: center; padding: 40px; color: #666; }
+    .spinner { width: 40px; height: 40px; border: 3px solid #f3f3f3; border-top: 3px solid #06C755; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p>読み込み中...</p>
+    </div>
+    
+    <div id="content" style="display: none;">
+      <div class="header">
+        <h1 id="storeName">🏪 シフト管理</h1>
+        <p class="greeting">こんにちは、<span id="userName">ゲスト</span>さん</p>
+      </div>
+      
+      <div class="menu-grid">
+        <button class="menu-item" onclick="navigateTo('apply')">
+          <div class="menu-icon apply">📅</div>
+          <div class="menu-text">
+            <h2>シフト申請</h2>
+            <p>来週のシフトを申請</p>
+          </div>
+        </button>
+        
+        <button class="menu-item" onclick="navigateTo('confirm')">
+          <div class="menu-icon confirm">📋</div>
+          <div class="menu-text">
+            <h2>シフト確認</h2>
+            <p>申請状況・確定シフト</p>
+          </div>
+        </button>
+        
+        <button class="menu-item" onclick="navigateTo('help')">
+          <div class="menu-icon help">🆘</div>
+          <div class="menu-text">
+            <h2>ヘルプ確認</h2>
+            <p>ヘルプ募集・応募</p>
+          </div>
+        </button>
+        
+        <button class="menu-item" onclick="navigateTo('info')">
+          <div class="menu-icon info">📢</div>
+          <div class="menu-text">
+            <h2>重要情報</h2>
+            <p>お知らせ・連絡事項</p>
+          </div>
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    const LIFF_ID = '2009050065-oKaPomP6';
+    const API_URL = 'https://script.google.com/macros/s/AKfycbyHP0pY5NdGa_SySLHs3E2XkDlZGQ2X1lIOi372w-Y3JoQeo3LbGaetpSc3KC6-d_bpFg/exec';
+    
+    let userProfile = null;
+    
+    async function init() {
+      try {
+        await liff.init({ liffId: LIFF_ID });
+        
+        if (liff.isLoggedIn()) {
+          userProfile = await liff.getProfile();
+          document.getElementById('userName').textContent = userProfile.displayName;
+        }
+        
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('content').style.display = 'block';
+        
+      } catch (error) {
+        console.error('LIFF init error:', error);
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('content').style.display = 'block';
+      }
+    }
+    
+    function navigateTo(page) {
+      window.location.href = page + '.html';
+    }
+    
+    init();
+  </script>
+</body>
+</html>
