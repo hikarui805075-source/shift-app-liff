@@ -45,8 +45,8 @@
       
       try {
         const res = await fetch(API_URL + '?action=getInfos');
-        const data = await res.json();
-        renderInfos(data);
+        const result = await res.json();
+        renderInfos(result.data || []);
       } catch (e) {
         document.getElementById('content').innerHTML = '<div class="empty">データの取得に失敗しました</div>';
       }
