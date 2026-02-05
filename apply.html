@@ -353,18 +353,12 @@
       const employeeId = userProfile ? userProfile.userId : 'GUEST';
       const employeeName = userProfile ? userProfile.displayName : 'ゲスト';
       
-      try {
-        const res = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({
-            action: 'saveShift',
-            employeeId, employeeName, shifts
-          })
-        });
-        
-        const result = await res.json();
+      // JSONP方式でGASに送信（CORS回避）
+      const callbackName = 'shiftCallback_' + Date.now();
+      
+      window[callbackName] = function(result) {
         document.getElementById('loadingView').style.display = 'none';
+        delete window[callbackName];
         
         if (result.success) {
           document.getElementById('completeMessage').textContent = `勤務日数: ${workDays}日\n確定までお待ちください`;
@@ -373,11 +367,25 @@
           alert('エラー: ' + (result.error || '送信に失敗しました'));
           backToShiftForm();
         }
-      } catch (e) {
+      };
+      
+      const params = new URLSearchParams({
+        action: 'saveShift',
+        employeeId: employeeId,
+        employeeName: encodeURIComponent(employeeName),
+        shifts: encodeURIComponent(JSON.stringify(shifts)),
+        callback: callbackName
+      });
+      
+      const script = document.createElement('script');
+      script.src = API_URL + '?' + params.toString();
+      script.onerror = function() {
         document.getElementById('loadingView').style.display = 'none';
-        alert('送信エラー: ' + e.message);
+        delete window[callbackName];
+        alert('送信エラー: サーバーに接続できませんでした');
         backToShiftForm();
-      }
+      };
+      document.body.appendChild(script);
     }
     
     function goToMenu() { window.location.href = 'index.html'; }
