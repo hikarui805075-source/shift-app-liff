@@ -353,39 +353,44 @@
       const employeeId = userProfile ? userProfile.userId : 'GUEST';
       const employeeName = userProfile ? userProfile.displayName : 'ゲスト';
       
-      // JSONP方式でGASに送信（CORS回避）
-      const callbackName = 'shiftCallback_' + Date.now();
+      // iframe + form方式でGASに送信（CORS回避）
+      const iframe = document.createElement('iframe');
+      iframe.name = 'submitFrame';
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
       
-      window[callbackName] = function(result) {
-        document.getElementById('loadingView').style.display = 'none';
-        delete window[callbackName];
-        
-        if (result.success) {
-          document.getElementById('completeMessage').textContent = `勤務日数: ${workDays}日\n確定までお待ちください`;
-          document.getElementById('completeView').style.display = 'block';
-        } else {
-          alert('エラー: ' + (result.error || '送信に失敗しました'));
-          backToShiftForm();
-        }
-      };
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = API_URL;
+      form.target = 'submitFrame';
       
-      const params = new URLSearchParams({
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'data';
+      input.value = JSON.stringify({
         action: 'saveShift',
         employeeId: employeeId,
-        employeeName: encodeURIComponent(employeeName),
-        shifts: encodeURIComponent(JSON.stringify(shifts)),
-        callback: callbackName
+        employeeName: employeeName,
+        shifts: shifts
       });
+      form.appendChild(input);
       
-      const script = document.createElement('script');
-      script.src = API_URL + '?' + params.toString();
-      script.onerror = function() {
+      document.body.appendChild(form);
+      
+      // 送信完了を検知
+      iframe.onload = function() {
         document.getElementById('loadingView').style.display = 'none';
-        delete window[callbackName];
-        alert('送信エラー: サーバーに接続できませんでした');
-        backToShiftForm();
+        document.getElementById('completeMessage').textContent = `勤務日数: ${workDays}日\n確定までお待ちください`;
+        document.getElementById('completeView').style.display = 'block';
+        
+        // クリーンアップ
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+          document.body.removeChild(form);
+        }, 1000);
       };
-      document.body.appendChild(script);
+      
+      form.submit();
     }
     
     function goToMenu() { window.location.href = 'index.html'; }
