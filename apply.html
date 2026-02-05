@@ -353,7 +353,7 @@
       const employeeId = userProfile ? userProfile.userId : 'GUEST';
       const employeeName = userProfile ? userProfile.displayName : 'ゲスト';
       
-      // GETリクエストでGASに送信
+      // fetch with no-cors mode（リクエストは送信される）
       const shiftsJson = JSON.stringify(shifts);
       const url = API_URL + 
         '?action=saveShift' +
@@ -361,29 +361,31 @@
         '&employeeName=' + encodeURIComponent(employeeName) +
         '&shifts=' + encodeURIComponent(shiftsJson);
       
-      console.log('Sending to:', url.substring(0, 200) + '...');
+      console.log('Sending request...');
       
-      // LIFFの場合は外部ブラウザで開く
-      if (typeof liff !== 'undefined' && liff.isInClient && liff.isInClient()) {
-        // LINEアプリ内の場合、liff.openWindowを使用
-        liff.openWindow({
-          url: url,
-          external: true
-        });
-        
-        // 少し待ってから完了画面を表示
-        setTimeout(function() {
-          showComplete(workDays);
-        }, 2000);
-      } else {
-        // 通常のブラウザの場合
-        const img = new Image();
-        img.onload = function() { showComplete(workDays); };
-        img.onerror = function() { showComplete(workDays); };
-        img.src = url;
-        
-        setTimeout(function() { showComplete(workDays); }, 3000);
-      }
+      // 複数の方法を同時に試す
+      try {
+        // 方法1: fetch no-cors
+        fetch(url, { mode: 'no-cors', cache: 'no-store' }).catch(function(){});
+      } catch(e) { console.log('fetch error:', e); }
+      
+      try {
+        // 方法2: Image
+        var img = new Image();
+        img.src = url + '&t=' + Date.now();
+      } catch(e) { console.log('image error:', e); }
+      
+      try {
+        // 方法3: XMLHttpRequest
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url + '&x=' + Date.now(), true);
+        xhr.send();
+      } catch(e) { console.log('xhr error:', e); }
+      
+      // 2秒後に完了画面
+      setTimeout(function() {
+        showComplete(workDays);
+      }, 2000);
     }
     
     function showComplete(workDays) {
