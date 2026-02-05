@@ -120,7 +120,8 @@
   
   <script>
     const LIFF_ID = '2009050065-oKaPomP6';
-    const API_URL = 'https://script.google.com/macros/s/AKfycbyHP0pY5NdGa_SySLHs3E2XkDlZGQ2X1lIOi372w-Y3JoQeo3LbGaetpSc3KC6-d_bpFg/exec';
+    // Cloudflare Worker経由でGAS APIにアクセス（LINE内ブラウザ対応）
+    const API_URL = 'https://shift-app-proxy.hikaru-i-805075.workers.dev';
     
     // デバッグログ関数
     function debugLog(msg) {
@@ -392,7 +393,7 @@
       const employeeId = userProfile ? userProfile.userId : 'GUEST';
       const employeeName = userProfile ? userProfile.displayName : 'ゲスト';
       
-      // シフトデータ送信
+      // Cloudflare Worker経由でシフトデータ送信
       const shiftsJson = JSON.stringify(shifts);
       const url = API_URL + 
         '?action=saveShift' +
@@ -400,70 +401,38 @@
         '&employeeName=' + encodeURIComponent(employeeName) +
         '&shifts=' + encodeURIComponent(shiftsJson);
       
-      debugLog('URL length: ' + url.length);
-      debugLog('Shifts count: ' + shifts.length);
+      debugLog('Sending to Cloudflare Worker...');
       debugLog('employeeId: ' + employeeId);
       debugLog('employeeName: ' + employeeName);
+      debugLog('Shifts count: ' + shifts.length);
       
-      var sendSuccess = false;
-      
-      // 方法1: 通常のfetch
-      debugLog('Method 1: fetch...');
       try {
         const res = await fetch(url);
-        debugLog('fetch status: ' + res.status);
+        debugLog('Response status: ' + res.status);
         const text = await res.text();
-        debugLog('fetch response: ' + text.substring(0, 100));
-        sendSuccess = true;
-      } catch(e) { 
-        debugLog('fetch error: ' + e.message);
-      }
-      
-      // 方法2: fetch no-cors
-      if (!sendSuccess) {
-        debugLog('Method 2: fetch no-cors...');
+        debugLog('Response: ' + text.substring(0, 100));
+        
         try {
-          await fetch(url, { mode: 'no-cors', cache: 'no-store' });
-          debugLog('no-cors sent (no response)');
-        } catch(e) { 
-          debugLog('no-cors error: ' + e.message);
-        }
-      }
-      
-      // 方法3: Image beacon
-      debugLog('Method 3: Image beacon...');
-      try {
-        var img = new Image();
-        img.onload = function() { debugLog('Image loaded'); };
-        img.onerror = function() { debugLog('Image error (expected)'); };
-        img.src = url + '&t=' + Date.now();
-      } catch(e) { 
-        debugLog('Image error: ' + e.message);
-      }
-      
-      // 方法4: XMLHttpRequest
-      debugLog('Method 4: XHR...');
-      try {
-        var xhr = new XMLHttpRequest();
-        xhr.onreadystatechange = function() {
-          if (xhr.readyState === 4) {
-            debugLog('XHR status: ' + xhr.status);
-            debugLog('XHR response: ' + (xhr.responseText || '').substring(0, 50));
+          const result = JSON.parse(text);
+          if (result.success) {
+            debugLog('Save successful! savedCount: ' + result.savedCount);
+            showComplete(workDays);
+          } else {
+            debugLog('Save failed: ' + (result.error || 'Unknown error'));
+            alert('保存に失敗しました: ' + (result.error || '不明なエラー'));
+            document.getElementById('loadingView').style.display = 'none';
+            document.getElementById('confirmView').style.display = 'block';
           }
-        };
-        xhr.onerror = function() { debugLog('XHR network error'); };
-        xhr.open('GET', url + '&x=' + Date.now(), true);
-        xhr.send();
+        } catch (parseErr) {
+          debugLog('JSON parse error, but request may have succeeded');
+          showComplete(workDays);
+        }
       } catch(e) { 
-        debugLog('XHR error: ' + e.message);
+        debugLog('Fetch error: ' + e.message);
+        alert('送信エラー: ' + e.message);
+        document.getElementById('loadingView').style.display = 'none';
+        document.getElementById('confirmView').style.display = 'block';
       }
-      
-      // 5秒後に完了画面（デバッグ確認のため長めに）
-      debugLog('Waiting 5 seconds...');
-      setTimeout(function() {
-        debugLog('Showing complete screen');
-        showComplete(workDays);
-      }, 5000);
     }
     
     function showComplete(workDays) {

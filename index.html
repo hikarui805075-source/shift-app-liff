@@ -79,7 +79,8 @@
   
   <script>
     const LIFF_ID = '2009050065-oKaPomP6';
-    const API_URL = 'https://script.google.com/macros/s/AKfycbyHP0pY5NdGa_SySLHs3E2XkDlZGQ2X1lIOi372w-Y3JoQeo3LbGaetpSc3KC6-d_bpFg/exec';
+    // Cloudflare Worker経由でGAS APIにアクセス（LINE内ブラウザ対応）
+    const API_URL = 'https://shift-app-proxy.hikaru-i-805075.workers.dev';
     
     let userProfile = null;
     
