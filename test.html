@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LINE API Test</title>
+</head>
+<body style="font-family:sans-serif;padding:20px;">
+  <h1>GAS API テスト</h1>
+  
+  <div id="log" style="background:#fff3cd;border:1px solid #ffc107;padding:15px;border-radius:8px;font-size:13px;white-space:pre-wrap;"></div>
+  
+  <button onclick="testAPI()" style="margin-top:20px;padding:15px 30px;font-size:18px;background:#06C755;color:white;border:none;border-radius:8px;">
+    APIテスト送信
+  </button>
+  
+  <div id="result" style="margin-top:20px;padding:15px;border:1px solid #ccc;border-radius:8px;"></div>
+  
+  <script>
+    const API_URL = 'https://script.google.com/macros/s/AKfycbyHP0pY5NdGa_SySLHs3E2XkDlZGQ2X1lIOi372w-Y3JoQeo3LbGaetpSc3KC6-d_bpFg/exec';
+    
+    function log(msg) {
+      document.getElementById('log').textContent += new Date().toLocaleTimeString() + ' | ' + msg + '\n';
+    }
+    
+    log('Page loaded');
+    log('User Agent: ' + navigator.userAgent.substring(0, 80));
+    
+    async function testAPI() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<strong>送信中...</strong>';
+      
+      const testUrl = API_URL + '?action=testSave&t=' + Date.now();
+      log('Testing URL: ' + testUrl.substring(0, 80) + '...');
+      
+      // 方法1: fetch
+      log('--- Method 1: fetch ---');
+      try {
+        const res = await fetch(testUrl);
+        log('fetch status: ' + res.status);
+        const text = await res.text();
+        log('fetch response: ' + text.substring(0, 200));
+        resultDiv.innerHTML = '<strong style="color:green;">fetch成功!</strong><br>' + text;
+        return;
+      } catch(e) {
+        log('fetch error: ' + e.message);
+      }
+      
+      // 方法2: fetch no-cors
+      log('--- Method 2: no-cors ---');
+      try {
+        await fetch(testUrl, { mode: 'no-cors', cache: 'no-store' });
+        log('no-cors: sent (response opaque)');
+      } catch(e) {
+        log('no-cors error: ' + e.message);
+      }
+      
+      // 方法3: Image
+      log('--- Method 3: Image ---');
+      try {
+        var img = new Image();
+        img.onload = function() { log('Image onload'); };
+        img.onerror = function() { log('Image onerror'); };
+        img.src = testUrl + '&img=1';
+        log('Image src set');
+      } catch(e) {
+        log('Image error: ' + e.message);
+      }
+      
+      // 方法4: XHR
+      log('--- Method 4: XHR ---');
+      try {
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function() {
+          log('XHR state: ' + xhr.readyState);
+          if (xhr.readyState === 4) {
+            log('XHR status: ' + xhr.status);
+            log('XHR response: ' + (xhr.responseText || '').substring(0, 100));
+            if (xhr.status === 200) {
+              resultDiv.innerHTML = '<strong style="color:green;">XHR成功!</strong><br>' + xhr.responseText;
+            }
+          }
+        };
+        xhr.onerror = function() { log('XHR network error'); };
+        xhr.open('GET', testUrl + '&xhr=1', true);
+        xhr.send();
+      } catch(e) {
+        log('XHR error: ' + e.message);
+      }
+      
+      // 5秒待機
+      setTimeout(function() {
+        log('--- 5 seconds elapsed ---');
+        resultDiv.innerHTML += '<br><br>5秒経過。ログを確認してスプレッドシートをチェックしてください。';
+      }, 5000);
+    }
+  </script>
+</body>
+</html>
