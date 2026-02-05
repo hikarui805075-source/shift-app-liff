@@ -357,14 +357,16 @@
       const iframe = document.createElement('iframe');
       iframe.style.display = 'none';
       
-      const params = new URLSearchParams({
-        action: 'saveShift',
-        employeeId: employeeId,
-        employeeName: employeeName,
-        shifts: JSON.stringify(shifts)
-      });
+      // URLを手動で構築（特殊文字対策）
+      const shiftsJson = JSON.stringify(shifts);
+      const url = API_URL + 
+        '?action=saveShift' +
+        '&employeeId=' + encodeURIComponent(employeeId) +
+        '&employeeName=' + encodeURIComponent(employeeName) +
+        '&shifts=' + encodeURIComponent(shiftsJson);
       
-      iframe.src = API_URL + '?' + params.toString();
+      console.log('Sending to:', url.substring(0, 200) + '...');
+      iframe.src = url;
       
       iframe.onload = function() {
         document.getElementById('loadingView').style.display = 'none';
