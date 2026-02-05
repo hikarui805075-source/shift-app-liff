@@ -353,7 +353,7 @@
       const employeeId = userProfile ? userProfile.userId : 'GUEST';
       const employeeName = userProfile ? userProfile.displayName : 'ゲスト';
       
-      // GETリクエストでGASに送信（Image方式 - 最も確実）
+      // GETリクエストでGASに送信
       const shiftsJson = JSON.stringify(shifts);
       const url = API_URL + 
         '?action=saveShift' +
@@ -363,25 +363,31 @@
       
       console.log('Sending to:', url.substring(0, 200) + '...');
       
-      // Image オブジェクトで送信（CORS制限なし）
-      const img = new Image();
-      img.onload = function() {
-        showComplete(workDays);
-      };
-      img.onerror = function() {
-        // GASはJSONを返すのでエラーになるが、リクエストは成功している
-        showComplete(workDays);
-      };
-      img.src = url;
-      
-      // 3秒後にタイムアウト処理
-      setTimeout(function() {
-        showComplete(workDays);
-      }, 3000);
+      // LIFFの場合は外部ブラウザで開く
+      if (typeof liff !== 'undefined' && liff.isInClient && liff.isInClient()) {
+        // LINEアプリ内の場合、liff.openWindowを使用
+        liff.openWindow({
+          url: url,
+          external: true
+        });
+        
+        // 少し待ってから完了画面を表示
+        setTimeout(function() {
+          showComplete(workDays);
+        }, 2000);
+      } else {
+        // 通常のブラウザの場合
+        const img = new Image();
+        img.onload = function() { showComplete(workDays); };
+        img.onerror = function() { showComplete(workDays); };
+        img.src = url;
+        
+        setTimeout(function() { showComplete(workDays); }, 3000);
+      }
     }
     
     function showComplete(workDays) {
-      if (document.getElementById('completeView').style.display === 'block') return; // 重複防止
+      if (document.getElementById('completeView').style.display === 'block') return;
       document.getElementById('loadingView').style.display = 'none';
       document.getElementById('completeMessage').textContent = '勤務日数: ' + workDays + '日\n確定までお待ちください';
       document.getElementById('completeView').style.display = 'block';
