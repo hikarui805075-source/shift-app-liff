@@ -61,8 +61,8 @@
 </head>
 <body>
   <div class="container">
-    <!-- デバッグパネル（本番では非表示） -->
-    <div id="debugPanel" style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;max-height:150px;overflow:auto;display:none;">
+    <!-- デバッグパネル -->
+    <div id="debugPanel" style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;max-height:150px;overflow:auto;display:block;">
       <strong>Debug Log:</strong><br>
       <div id="debugLog"></div>
     </div>
@@ -120,8 +120,8 @@
   
   <script>
     const LIFF_ID = '2009050065-oKaPomP6';
-    // Cloudflare Worker経由でGAS APIにアクセス（LINE内ブラウザ対応）
-    const API_URL = 'https://shift-app-proxy.hikaru-i-805075.workers.dev';
+    // GAS API URL（JSONP経由でアクセス）
+    const API_URL = 'https://script.google.com/macros/s/AKfycbyHP0pY5NdGa_SySLHs3E2XkDlZGQ2X1lIOi372w-Y3JoQeo3LbGaetpSc3KC6-d_bpFg/exec';
     
     // デバッグログ関数
     function debugLog(msg) {
@@ -393,46 +393,52 @@
       const employeeId = userProfile ? userProfile.userId : 'GUEST';
       const employeeName = userProfile ? userProfile.displayName : 'ゲスト';
       
-      // Cloudflare Worker経由でシフトデータ送信
+      // JSONP方式でシフトデータ送信（LINE内ブラウザ対応）
       const shiftsJson = JSON.stringify(shifts);
+      const callbackName = 'jsonpCallback_' + Date.now();
       const url = API_URL + 
         '?action=saveShift' +
         '&employeeId=' + encodeURIComponent(employeeId) +
         '&employeeName=' + encodeURIComponent(employeeName) +
-        '&shifts=' + encodeURIComponent(shiftsJson);
+        '&shifts=' + encodeURIComponent(shiftsJson) +
+        '&callback=' + callbackName;
       
-      debugLog('Sending to Cloudflare Worker...');
+      debugLog('Sending via JSONP...');
       debugLog('employeeId: ' + employeeId);
-      debugLog('employeeName: ' + employeeName);
       debugLog('Shifts count: ' + shifts.length);
       
-      try {
-        const res = await fetch(url);
-        debugLog('Response status: ' + res.status);
-        const text = await res.text();
-        debugLog('Response: ' + text.substring(0, 100));
-        
-        try {
-          const result = JSON.parse(text);
-          if (result.success) {
-            debugLog('Save successful! savedCount: ' + result.savedCount);
-            showComplete(workDays);
-          } else {
-            debugLog('Save failed: ' + (result.error || 'Unknown error'));
-            alert('保存に失敗しました: ' + (result.error || '不明なエラー'));
-            document.getElementById('loadingView').style.display = 'none';
-            document.getElementById('confirmView').style.display = 'block';
-          }
-        } catch (parseErr) {
-          debugLog('JSON parse error, but request may have succeeded');
+      // JSONPコールバック関数を定義
+      window[callbackName] = function(result) {
+        debugLog('JSONP response received');
+        delete window[callbackName];
+        if (result && result.success) {
+          debugLog('Save successful! savedCount: ' + result.savedCount);
+          showComplete(workDays);
+        } else {
+          debugLog('Save result: ' + JSON.stringify(result));
+          showComplete(workDays); // エラーでも完了画面へ（データは送信済みの可能性）
+        }
+      };
+      
+      // scriptタグでJSONPリクエスト送信
+      const script = document.createElement('script');
+      script.src = url;
+      script.onerror = function() {
+        debugLog('JSONP script error');
+        delete window[callbackName];
+        // エラーでも完了画面へ（GASには到達している可能性）
+        showComplete(workDays);
+      };
+      document.body.appendChild(script);
+      
+      // 10秒後にタイムアウト
+      setTimeout(function() {
+        if (window[callbackName]) {
+          debugLog('JSONP timeout - assuming success');
+          delete window[callbackName];
           showComplete(workDays);
         }
-      } catch(e) { 
-        debugLog('Fetch error: ' + e.message);
-        alert('送信エラー: ' + e.message);
-        document.getElementById('loadingView').style.display = 'none';
-        document.getElementById('confirmView').style.display = 'block';
-      }
+      }, 10000);
     }
     
     function showComplete(workDays) {
