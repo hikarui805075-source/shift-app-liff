@@ -120,8 +120,8 @@
   
   <script>
     const LIFF_ID = '2009050065-oKaPomP6';
-    // GAS API URL（JSONP経由でアクセス）
-    const API_URL = 'https://script.google.com/macros/s/AKfycbzZz3qWwuMHH0CxbbZlKsyMnw0US4qelh7RjfGarQI2mUj6FF7b1Nsm-G23mfzoV5Vn/exec';
+    // Cloudflare Worker API URL
+    const API_URL = 'https://shift-app-proxy.hikaru-i-805075.workers.dev';
     
     // デバッグログ関数
     function debugLog(msg) {
@@ -393,52 +393,33 @@
       const employeeId = userProfile ? userProfile.userId : 'GUEST';
       const employeeName = userProfile ? userProfile.displayName : 'ゲスト';
       
-      // JSONP方式でシフトデータ送信（LINE内ブラウザ対応）
+      // Cloudflare Worker経由でシフトデータ送信（CORS対応済み）
       const shiftsJson = JSON.stringify(shifts);
-      const callbackName = 'jsonpCallback_' + Date.now();
       const url = API_URL + 
         '?action=saveShift' +
         '&employeeId=' + encodeURIComponent(employeeId) +
         '&employeeName=' + encodeURIComponent(employeeName) +
-        '&shifts=' + encodeURIComponent(shiftsJson) +
-        '&callback=' + callbackName;
+        '&shifts=' + encodeURIComponent(shiftsJson);
       
-      debugLog('Sending via JSONP...');
+      debugLog('Sending to Cloudflare Worker...');
       debugLog('employeeId: ' + employeeId);
       debugLog('Shifts count: ' + shifts.length);
       
-      // JSONPコールバック関数を定義
-      window[callbackName] = function(result) {
-        debugLog('JSONP response received');
-        delete window[callbackName];
+      try {
+        const response = await fetch(url);
+        const result = await response.json();
+        debugLog('Response: ' + JSON.stringify(result));
+        
         if (result && result.success) {
           debugLog('Save successful! savedCount: ' + result.savedCount);
-          showComplete(workDays);
         } else {
-          debugLog('Save result: ' + JSON.stringify(result));
-          showComplete(workDays); // エラーでも完了画面へ（データは送信済みの可能性）
+          debugLog('Save error: ' + (result.error || 'Unknown'));
         }
-      };
+      } catch (e) {
+        debugLog('Fetch error: ' + e.message);
+      }
       
-      // scriptタグでJSONPリクエスト送信
-      const script = document.createElement('script');
-      script.src = url;
-      script.onerror = function() {
-        debugLog('JSONP script error');
-        delete window[callbackName];
-        // エラーでも完了画面へ（GASには到達している可能性）
-        showComplete(workDays);
-      };
-      document.body.appendChild(script);
-      
-      // 10秒後にタイムアウト
-      setTimeout(function() {
-        if (window[callbackName]) {
-          debugLog('JSONP timeout - assuming success');
-          delete window[callbackName];
-          showComplete(workDays);
-        }
-      }, 10000);
+      showComplete(workDays);
     }
     
     function showComplete(workDays) {
